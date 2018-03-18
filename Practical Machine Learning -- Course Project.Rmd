@@ -1,0 +1,141 @@
+---
+title: "Practical Machine Learning"
+subtitle:  "Course Project by Ken Roubal (03/18/2018)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project Goal
+
+Use existing datasets and machine learning methods to predict the manner in which athletic participants performed exercises.  Construct a machine learning model, use cross validation, and describe the expected out of sample error and methodlogical choices you made.  Use the model to predict 20 test cases.
+
+Training dataset is here: <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>.
+Test dataset is here: <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>.
+
+## Prepare the Workspace and Datasets
+
+Load the caret package and datasets from the provided URLs. 
+
+```{r lifting1, cache=TRUE}
+library(caret); set.seed(1234)
+Train <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"))
+Test <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"))
+                 
+```
+
+Partition the training set into a new training (70%) and validation (30%) set in order to estimate out of sample error. 
+
+```{r lifting2, cache=TRUE}
+useTrain <- createDataPartition(y=Train$classe, p=0.70, list=F)
+Train1 <- Train[useTrain,]
+Train2 <- Train[-useTrain,]
+```
+
+Clean up the dataset (160 variables) by identifying and removing variables with almost no variance (no variance means no utility as predictor).
+
+```{r lifting3, cache=TRUE}
+nzv <- nearZeroVar(Train1)
+Train1 <- Train1[,-nzv]
+Train2 <- Train2[,-nzv]
+dim(Train1)
+```
+
+Down to 104 variables.  Let's clear variables that are predominantly missing.
+
+```{r lifting4, cache=TRUE}
+na95 <- sapply(Train1, function(x) mean(is.na(x))) > 0.95
+Train1 <- Train1[,na95==F]
+Train2 <- Train2[,na95==F]
+dim(Train1)
+```
+
+That one was effective.  Down to 59 variables.  Finally remove the leading 5 variables from the dataset because they're ID variables we won't need.
+
+```{r lifting5, cache=TRUE}
+Train1 <- Train1[, -(1:5)]
+Train2 <- Train2[, -(1:5)]
+dim(Train1)
+```
+
+Ready to build the model with our final 54 variables.
+
+## Build the Model 
+
+I chose to start with a Random Forest model and 3-fold cross validation.
+
+```{r lifting6, cache=TRUE}
+modfit <- trainControl(method="cv", number=3, verboseIter=FALSE)
+fit <- train(classe ~ ., data=Train1, method="rf", trControl=modfit)
+fit$finalModel
+```
+
+## Evaluate the Model
+
+The fitted model is now used to predict the 'classe' variable in the validation set (Train2).  
+
+```{r lifting7, cache=TRUE}
+prediction <- predict(fit, newdata=Train2)
+confusionMatrix(Train2$classe, prediction)
+```
+
+According to the results, the model has an accuracy of 99.83%.  The expected out of sample error is, therefore, 1 - .9983 = 0.0017 = 0.17%.  Preliminary results look great so let's retrain the model on the full training set (Train1 and Train2) in order to test the final model.
+
+```{r lifting8, cache=TRUE}
+#Re-prep the datasets.
+nzv <- nearZeroVar(Train)
+TrainFINAL <- Train[,-nzv]
+TestFINAL <- Test[,-nzv]
+na95 <- sapply(TrainFINAL, function(x) mean(is.na(x))) > 0.95
+TrainFINAL <- TrainFINAL[,na95==F]
+TestFINAL <- TestFINAL[,na95==F]
+TrainFINAL <- TrainFINAL[, -(1:5)]
+TestFINAL <- TestFINAL[, -(1:5)]
+
+#Reconstruct the model parameters using the full training set.
+modfit <- trainControl(method="cv", number=3, verboseIter=FALSE)
+fit <- train(classe ~ ., data=TrainFINAL, method="rf", trControl=modfit)
+fit$finalModel
+```
+
+## Test the Model
+
+Use the finalized Random Forest model on the Test set of 20 cases.
+
+```{r lifting9, cache=TRUE}
+predictionTEST <- predict(fit, newdata=TestFINAL)
+predictionTEST
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
